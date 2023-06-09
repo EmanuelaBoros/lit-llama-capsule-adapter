@@ -71,8 +71,8 @@ for subdir, file_list in subfolder_file_lists.items():
         f.write('\n\n'.join(documents))
     # subfolder_documents[subdir] = documents
     token_count = 0
-    with Pool(100) as p:
-        token_count = sum(p.map(get_token_count, documents))
+    # with Pool(100) as p:
+    token_count = get_token_count(' '.join(documents))
     token_counts[subdir] = token_count
     print(f"[INFO] Got {token_count} tokens for {subdir}.")
 
