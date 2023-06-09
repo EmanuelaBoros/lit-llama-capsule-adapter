@@ -8,7 +8,7 @@ from pathlib import Path
 from contextlib import contextmanager
 
 import torch
-import torch.utils._device
+# import torch.utils._device
 from lightning.fabric.strategies import DeepSpeedStrategy, FSDPStrategy
 from torch.distributed.fsdp import FullStateDictConfig
 from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
@@ -122,13 +122,13 @@ class EmptyInitOnDevice(torch.overrides.TorchFunctionMode):
                 return args[0]
         if (
             self.device is not None
-            and func in torch.utils._device._device_constructors()
+            # and func in torch.utils._device._device_constructors()
             and kwargs.get("device") is None
         ):
             kwargs["device"] = self.device
         if (
             self.dtype is not None
-            and func in torch.utils._device._device_constructors()
+            # and func in torch.utils._device._device_constructors()
             and kwargs.get("dtype") is None
         ):
             kwargs["dtype"] = self.dtype
