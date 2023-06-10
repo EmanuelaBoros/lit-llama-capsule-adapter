@@ -50,13 +50,14 @@ def process_data(file_list):
 subfolder_file_lists = get_files('data')
 
 token_counts = {}
-token_count = 0
+# token_count = 0
 # subfolder_documents = {}
 for subdir, file_list in subfolder_file_lists.items():
     documents = []
-    print(subdir)
+    print(subdir, ':', len(file_list), 'documents')
+    from tqdm import tqdm
     with open(os.path.join('data', subdir.split('/')[-1] + '.txt'), 'w') as f:
-        for file_path in file_list:
+        for file_path in tqdm(file_list, total=len(file_list)):
             with bz2.open(file_path, "rt") as bz_file:
                 # jsonlines reader
                 reader = jsonlines.Reader(bz_file)
@@ -70,18 +71,15 @@ for subdir, file_list in subfolder_file_lists.items():
                 documents.append(document)
         f.write('\n\n'.join(documents))
     # subfolder_documents[subdir] = documents
-    token_count = 0
-    # with Pool(100) as p:
     token_count = get_token_count(' '.join(documents))
     token_counts[subdir] = token_count
     print(f"[INFO] Got {token_count} tokens for {subdir}.")
 
-
-summ = 0
-for i in token_counts:
-    print(f"{i}: {token_counts[i]}")
-    summ += token_counts[i]
-print("Total: ", summ)
+    summ = 0
+    for i in token_counts:
+        print(f"{i}: {token_counts[i]}")
+        summ += token_counts[i]
+    print("Total: ", summ)
 
 with open(os.path.join('data', 'token_counts_impresso.json'), "w") as f:
     json.dump(token_counts, f)
