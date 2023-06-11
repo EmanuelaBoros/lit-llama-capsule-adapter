@@ -7,12 +7,18 @@ from functools import partial
 from pathlib import Path
 from typing import Tuple, Optional
 
-import lightning as L
-from lightning.fabric.strategies import FSDPStrategy
-
 import torch
 from torch.utils.data import DataLoader
 from torch.distributed.fsdp.wrap import transformer_auto_wrap_policy
+from lightning.fabric.plugins import precision
+# amp_plugin = precision.AmpPrecisionPlugin()
+# amp_plugin._desired_input_dtype = torch.float16
+
+import lightning as L
+from lightning.fabric.strategies import FSDPStrategy
+
+# from lightning.fabric.plugins import precision
+# precision._desired_input_dtype = torch.float16
 
 import numpy as np
 
@@ -34,6 +40,7 @@ log_interval = 1
 
 # Hyperparameters
 learning_rate = 6e-4
+# batch_size = 32
 batch_size = 125
 micro_batch_size = 5
 max_iters = 600000  # num_epochs * (epoch_size // micro_batch_size) // devices
@@ -63,7 +70,7 @@ data_config = [
 
 def main(
         devices: int = 4,
-        train_data_dir: Path = "../data/",
+        train_data_dir: Path = "../data/impresso",
         val_data_dir: Optional[Path] = None,
 ) -> None:
     auto_wrap_policy = partial(
@@ -73,11 +80,21 @@ def main(
         auto_wrap_policy=auto_wrap_policy, activation_checkpointing=Block
     )
 
+    #with torch.cuda.amp.autocast(dtype=torch.bfloat16):
     fabric = L.Fabric(
-        accelerator="cuda", devices=devices, precision="bf16-mixed", strategy=strategy
+        accelerator="cuda", devices=devices, precision="bf16-mixed", strategy=strategy #bf16-mixed
     )
+
+    # ValueError: Precision
+    # 'f16-mixed' is invalid.Allowed
+    # precision
+    # values: (
+    # '16-true', '16-mixed', 'bf16-true', 'bf16-mixed', '32-true', '64-true', 64, 32, 16, '64', '32', '16', 'bf16')
+
     fabric.launch()
     fabric.seed_everything(1337)
+
+    # print(torch.cuda.memory_summary(device=None, abbreviated=False))
 
     if fabric.global_rank == 0:
         os.makedirs(out_dir, exist_ok=True)
@@ -98,6 +115,7 @@ def main(
         train_dataloader, val_dataloader = fabric.setup_dataloaders(train_dataloader, val_dataloader)
 
     with fabric.device:
+        # torch.set_default_dtype(torch.float16)
         torch.set_default_dtype(torch.bfloat16)
         model = LLaMA(config)
         model.apply(model._init_weights)
@@ -144,6 +162,8 @@ def train(
     tokens_sec = 0.0
     prev_t1 = time.time()
 
+    # model = model.half()
+
     for iter_num, train_data in enumerate(train_dataloader):
         t0 = time.time()
 
@@ -156,8 +176,12 @@ def train(
         targets = train_data[:, 1: model.config.block_size + 1].contiguous()
 
         is_accumulating = (iter_num + 1) % grad_accum_steps != 0
+        # input_ids = input_ids.to(dtype=torch.long)
+
+        # print(input_ids.dtype)
 
         with fabric.no_backward_sync(model, enabled=is_accumulating):
+
             logits = model(input_ids)
             loss = torch.nn.functional.cross_entropy(
                 logits.view(-1, logits.size(-1)), targets.view(-1), ignore_index=-1
@@ -223,6 +247,9 @@ def validate(
     for k, val_data in enumerate(val_dataloader):
         input_ids = val_data[:, 0: model.config.block_size].contiguous()
         targets = val_data[:, 1: model.config.block_size + 1].contiguous()
+
+        # input_ids = input_ids.to(dtype=torch.long)
+
         logits = model(input_ids)
         loss = torch.nn.functional.cross_entropy(
             logits.view(-1, logits.size(-1)), targets.view(-1), ignore_index=-1
@@ -243,9 +270,9 @@ def create_dataloader(
 ) -> DataLoader:
     datasets = []
     for prefix, _ in data_config:
-        # filenames = glob.glob(os.path.join(data_dir, prefix + "*"))
-        filenames = glob.glob(os.path.join(data_dir, "*.txt"))
-        print(filenames)
+        filenames = glob.glob(os.path.join(data_dir, prefix + "*"))
+        # filenames = glob.glob(os.path.join(data_dir, "*.txt"))
+        # print(filenames)
         dataset = PackedDataset(
             filenames, n_chunks=4, block_size=block_size, shuffle=shuffle, seed=seed,
             num_processes=fabric.world_size, process_rank=fabric.global_rank,

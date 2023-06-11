@@ -52,28 +52,34 @@ subfolder_file_lists = get_files('data')
 token_counts = {}
 # token_count = 0
 # subfolder_documents = {}
+token_count = 0
 for subdir, file_list in subfolder_file_lists.items():
-    documents = []
+    # documents = []
     print(subdir, ':', len(file_list), 'documents')
     from tqdm import tqdm
-    with open(os.path.join('data', subdir.split('/')[-1] + '.txt'), 'w') as f:
-        for file_path in tqdm(file_list, total=len(file_list)):
-            with bz2.open(file_path, "rt") as bz_file:
-                # jsonlines reader
-                reader = jsonlines.Reader(bz_file)
-                document = ""
-                for obj in reader:
-                    # check if 'ft' is in the json object
-                    if 'ft' in obj:
-                        # concatenate the 'ft' string to the current document
-                        document += obj['ft']
-                # append the current document to the list of documents
-                documents.append(document)
-        f.write('\n\n'.join(documents))
+    small_token_count = 0
+    # with open(os.path.join('data', subdir.split('/')[-1] + '.txt'), 'w') as f:
+    for file_path in tqdm(file_list, total=len(file_list)):
+        with bz2.open(file_path, "rt") as bz_file:
+            # jsonlines reader
+            reader = jsonlines.Reader(bz_file)
+            document = ""
+            for obj in reader:
+                # check if 'ft' is in the json object
+                if 'ft' in obj:
+                    # concatenate the 'ft' string to the current document
+                    document += obj['ft']
+            # append the current document to the list of documents
+            # documents.append(document)
+            count = get_token_count(document)
+            token_count += count
+            small_token_count += count
+            print("Total: ", token_count)
+        # f.write('\n\n'.join(documents))
     # subfolder_documents[subdir] = documents
-    token_count = get_token_count(' '.join(documents))
-    token_counts[subdir] = token_count
-    print(f"[INFO] Got {token_count} tokens for {subdir}.")
+    # token_count = get_token_count(' '.join(documents))
+    token_counts[subdir] = count
+    print(f"[INFO] Got {count} tokens for {subdir}.")
 
     summ = 0
     for i in token_counts:
